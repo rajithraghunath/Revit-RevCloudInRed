@@ -61,6 +61,8 @@ namespace RevCloudInRed
                     // OverrideGraphicSettings ogs = new OverrideGraphicSettings();
                     //ogs.SetProjectionLineColor(new Color(255, 0, 0)); // Red
                     //sheet.SetCategoryOverrides(revisionCategory.Id, ogs);
+                    //(Row 57: ogs.SetProjectionLineColor(new Color(255, 0, 0));
+                    //Try to change all the other element color to 0, 0, 0
 
                 }
                 tx.Commit();
