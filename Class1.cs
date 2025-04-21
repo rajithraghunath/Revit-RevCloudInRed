@@ -12,11 +12,14 @@ namespace RevCloudInRed
     [Transaction(TransactionMode.Manual)]
     public class PrintWithColoredRevisionClouds : IExternalCommand
     {
-        public Result Execute(
-            ExternalCommandData commandData,
-            ref string message,
-            ElementSet elements)
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+
         {
+            System.Diagnostics.Debug.WriteLine("PrintWithColoredRevisionClouds");
+            System.Diagnostics.Debugger.Launch();
+
+            TaskDialog.Show("Debug", "Star of Execute");
+
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
 
@@ -40,17 +43,28 @@ namespace RevCloudInRed
                 return Result.Failed;
             }
 
-            using (Transaction tx = new Transaction(doc, "Override Revision Cloud Color"))
-            {
-                tx.Start();
-                foreach (ViewSheet sheet in sheetsCollector)
+            else if (revisionCategory != null)
+            { 
+                TaskDialog.Show("Debug", "Revision Cloud category found.");
+            }
+
+                using (Transaction tx = new Transaction(doc, "Override Revision Cloud Color"))
                 {
-                    OverrideGraphicSettings ogs = new OverrideGraphicSettings();
-                    ogs.SetProjectionLineColor(new Color(255, 0, 0)); // Red
-                    sheet.SetCategoryOverrides(revisionCategory.Id, ogs);
+                    tx.Start();
+                    foreach (ViewSheet sheet in sheetsCollector)
+                    {
+                        OverrideGraphicSettings ogs = new OverrideGraphicSettings();
+                        ogs.SetProjectionLineColor(new Color(255, 0, 0)); // Red
+                        sheet.SetCategoryOverrides(revisionCategory.Id, ogs);
+
+                    // Set the color for the revision clouds in the view
+                    // OverrideGraphicSettings ogs = new OverrideGraphicSettings();
+                    //ogs.SetProjectionLineColor(new Color(255, 0, 0)); // Red
+                    //sheet.SetCategoryOverrides(revisionCategory.Id, ogs);
+
                 }
                 tx.Commit();
-            }
+                }
 
             // Setup print settings
             PrintManager printManager = doc.PrintManager;
@@ -65,7 +79,7 @@ namespace RevCloudInRed
                 PrintSetting printSetting = setup.CurrentPrintSetting as PrintSetting;
                 PrintParameters parameters = printSetting.PrintParameters;
 
-                parameters.ColorDepth = ColorDepthType.BlackLine;
+                parameters.ColorDepth = ColorDepthType.Color;
                 parameters.PaperPlacement = PaperPlacementType.Center;
                 parameters.ZoomType = ZoomType.FitToPage;
                 parameters.HideCropBoundaries = true;
@@ -75,7 +89,7 @@ namespace RevCloudInRed
 
             // Choose a directory to save the PDFs
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            string outputFolder = Path.Combine(desktop, "Revit Sheet PDFs");
+            string outputFolder = Path.Combine("C:\\Users\\rajith.r\\OneDrive - Setty and Associates\\Desktop", "Revit Sheet PDFs");
             Directory.CreateDirectory(outputFolder);
 
             // Print each sheet to PDF with custom filename
@@ -105,9 +119,13 @@ namespace RevCloudInRed
                 {
                     TaskDialog.Show("Print Error", $"Failed to print {sheet.Name}: {ex.Message}");
                 }
+                TaskDialog.Show("Check", $"Applied color override to sheet: {sheet.Name}");
+
             }
 
-            TaskDialog.Show("Success", $"All sheets printed to:\n{outputFolder}");
+            TaskDialog.Show("Success", $"All sheets printed");
+
+            //TaskDialog.Show("Success", $"All sheets printed to:\n{outputFolder}");
             return Result.Succeeded;
         }
     }
