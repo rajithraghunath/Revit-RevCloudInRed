@@ -19,19 +19,11 @@ namespace RevCloudInRed
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
 
-            // Get only selected sheets
-            List<ViewSheet> selectedSheets = new FilteredElementCollector(doc)
+            List<ViewSheet> sheetsCollector = new FilteredElementCollector(doc)
                 .OfClass(typeof(ViewSheet))
                 .Cast<ViewSheet>()
                 .Where(sheet => !sheet.IsPlaceholder)
                 .ToList();
-
-
-            if (!selectedSheets.Any())
-            {
-                TaskDialog.Show("No Sheets", "Please select one or more sheets before running the command.");
-                return Result.Cancelled;
-            }
 
             List<ElementId> tempFilterIds = new List<ElementId>();
 
@@ -39,7 +31,7 @@ namespace RevCloudInRed
             {
                 tx.Start();
 
-                foreach (ViewSheet sheet in selectedSheets)
+                foreach (ViewSheet sheet in sheetsCollector)
                 {
                     List<ElementId> categoryIdsToOverride = new List<ElementId>();
                     foreach (Category cat in doc.Settings.Categories)
@@ -56,11 +48,16 @@ namespace RevCloudInRed
                     {
                         BuiltInCategory.OST_Rooms,
                         BuiltInCategory.OST_FillPatterns,
+                        //BuiltInCategory.OST_ColorFillLegends,
                         BuiltInCategory.OST_Walls,
                         BuiltInCategory.OST_WallsCutPattern,
-                        BuiltInCategory.OST_WallsSurfacePattern,
                         BuiltInCategory.OST_Doors,
+
+                        BuiltInCategory.OST_WallsSurfacePattern,
+                        
                         BuiltInCategory.OST_Windows
+
+                       
                     };
 
                     foreach (BuiltInCategory bic in mustInclude)
@@ -82,13 +79,16 @@ namespace RevCloudInRed
                     sheetOGS.SetProjectionLineColor(new Color(0, 0, 0));
                     sheetOGS.SetCutLineColor(new Color(0, 0, 0));
                     sheetOGS.SetSurfaceForegroundPatternColor(new Color(0, 0, 0));
-                    sheetOGS.SetSurfaceBackgroundPatternColor(new Color(0, 0, 0));
+
+                    sheetOGS.SetCutBackgroundPatternColor(new Color(0, 0, 0));
+                    sheetOGS.SetCutBackgroundPatternColor(new Color(0, 0, 0));
 
                     sheet.AddFilter(sheetFilter.Id);
                     sheet.SetFilterOverrides(sheetFilter.Id, sheetOGS);
 
                     // View-level filters
-                    foreach (ElementId viewId in sheet.GetAllPlacedViews())
+                    ICollection<ElementId> placedViewIds = sheet.GetAllPlacedViews();
+                    foreach (ElementId viewId in placedViewIds)
                     {
                         View view = doc.GetElement(viewId) as View;
                         if (view == null || view.IsTemplate) continue;
@@ -102,7 +102,6 @@ namespace RevCloudInRed
                         viewOGS.SetProjectionLineColor(new Color(0, 0, 0));
                         viewOGS.SetCutLineColor(new Color(0, 0, 0));
                         viewOGS.SetSurfaceForegroundPatternColor(new Color(0, 0, 0));
-                        viewOGS.SetSurfaceBackgroundPatternColor(new Color(0, 0, 0));
 
                         view.AddFilter(viewFilter.Id);
                         view.SetFilterOverrides(viewFilter.Id, viewOGS);
@@ -133,18 +132,26 @@ namespace RevCloudInRed
             }
 
             string outputFolder = @"C:\Temp\Revit Sheet PDFs";
-            Directory.CreateDirectory(outputFolder);
+            Directory.CreateDirectory(outputFolder); // Ensure the output directory exists
 
             List<string> printedFiles = new List<string>();
 
-            foreach (ViewSheet sheet in selectedSheets)
+            foreach (ViewSheet sheet in sheetsCollector)
             {
                 ViewSet vs = new ViewSet();
                 vs.Insert(sheet);
                 printManager.ViewSheetSetting.CurrentViewSheetSet.Views = vs;
                 printManager.Apply();
 
-                string fileName = CleanFileName($"{sheet.SheetNumber}_{sheet.Name}.pdf");
+                string fileName = $"{sheet.SheetNumber}_{sheet.Name}.pdf";
+                foreach (char c in Path.GetInvalidFileNameChars())
+                {
+                    fileName = fileName.Replace(c, '_');
+                    Directory.CreateDirectory(fileName); // Ensure the File exists
+
+                }
+
+
                 string filePath = Path.Combine(outputFolder, fileName);
                 printManager.PrintToFileName = filePath;
 
@@ -152,15 +159,19 @@ namespace RevCloudInRed
                 {
                     printManager.SubmitPrint();
 
+                    // Wait and retry to ensure the file is created
                     int retry = 0;
                     while (!File.Exists(filePath) && retry < 10)
                     {
-                        Thread.Sleep(500);
+                        Thread.Sleep(500); // Wait 0.5 seconds
                         retry++;
                     }
 
                     if (File.Exists(filePath))
                         printedFiles.Add(filePath);
+                    //else
+                    //    TaskDialog.Show("Warning", $"File not created: {filePath}");
+
                 }
                 catch (Exception ex)
                 {
@@ -169,6 +180,7 @@ namespace RevCloudInRed
                 }
             }
 
+            // Merge PDFs into single file
             string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
             MergePdfFiles(printedFiles, mergedPdfPath);
 
@@ -186,17 +198,8 @@ namespace RevCloudInRed
                 cleanupTx.Commit();
             }
 
-            TaskDialog.Show("Success", $"Selected sheets printed and merged to:\n{mergedPdfPath}");
+            TaskDialog.Show("Success", $"All sheets printed and combined PDF saved to:\n{mergedPdfPath}");
             return Result.Succeeded;
-        }
-
-        private string CleanFileName(string rawName)
-        {
-            foreach (char c in Path.GetInvalidFileNameChars())
-            {
-                rawName = rawName.Replace(c, '_');
-            }
-            return rawName;
         }
 
         private void MergePdfFiles(List<string> filePaths, string outputPath)
