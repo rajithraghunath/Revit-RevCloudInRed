@@ -199,8 +199,8 @@ namespace RevCloudInRed
                 }
             }
 
-            //string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
-            //MergePdfFiles(printedFiles, mergedPdfPath);
+            string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
+            MergePdfFiles(printedFiles, mergedPdfPath);
 
             using (Transaction cleanupTx = new Transaction(doc, "Clean Up Temporary Filters"))
             {
@@ -212,9 +212,7 @@ namespace RevCloudInRed
                 cleanupTx.Commit();
             }
 
-            //TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{mergedPdfPath}");
-            //TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{outputFolder}");
-
+            TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{mergedPdfPath}");
             return Result.Succeeded;
         }
 
@@ -222,8 +220,6 @@ namespace RevCloudInRed
         {
             var ogs = new OverrideGraphicSettings();
             Color black = new Color(0, 0, 0);
-            //ogs.SetHalftone(true);
-
             ogs.SetProjectionLineColor(black);
             ogs.SetCutLineColor(black);
             ogs.SetSurfaceBackgroundPatternColor(black);

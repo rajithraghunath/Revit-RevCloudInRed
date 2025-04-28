@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Windows.Forms;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 
@@ -20,16 +19,17 @@ namespace RevCloudInRed
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
 
-            // Get selected ViewSheets only
-            List<ViewSheet> sheetsCollector = new FilteredElementCollector(doc)
-                            .OfClass(typeof(ViewSheet))
-                            .Cast<ViewSheet>()
-                            .Where(sheet => !sheet.IsPlaceholder)
-                            .ToList();
+            // Get only selected sheets
+            List<ViewSheet> selectedSheets = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewSheet))
+                .Cast<ViewSheet>()
+                .Where(sheet => !sheet.IsPlaceholder)
+                .ToList();
 
-            if (!sheetsCollector.Any())
+
+            if (!selectedSheets.Any())
             {
-                TaskDialog.Show("No Sheets Selected", "Please select one or more sheets before running the command.");
+                TaskDialog.Show("No Sheets", "Please select one or more sheets before running the command.");
                 return Result.Cancelled;
             }
 
@@ -39,7 +39,7 @@ namespace RevCloudInRed
             {
                 tx.Start();
 
-                foreach (ViewSheet sheet in sheetsCollector)
+                foreach (ViewSheet sheet in selectedSheets)
                 {
                     List<ElementId> categoryIdsToOverride = new List<ElementId>();
                     foreach (Category cat in doc.Settings.Categories)
@@ -51,26 +51,15 @@ namespace RevCloudInRed
                         }
                     }
 
+                    // Explicitly include key categories
                     BuiltInCategory[] mustInclude = new[]
                     {
-                        BuiltInCategory.OST_CutOutlines,
-                        BuiltInCategory.OST_Doors,
-                        BuiltInCategory.OST_Materials,
                         BuiltInCategory.OST_Rooms,
                         BuiltInCategory.OST_FillPatterns,
                         BuiltInCategory.OST_Walls,
-                        BuiltInCategory.OST_FilledRegion,
                         BuiltInCategory.OST_WallsCutPattern,
-                        BuiltInCategory.OST_WallsDefault,
-                        BuiltInCategory.OST_WallsFinish1,
-                        BuiltInCategory.OST_WallsFinish2,
-                        BuiltInCategory.OST_WallsInsulation,
-                        BuiltInCategory.OST_WallsMembrane,
-                        BuiltInCategory.OST_WallsProjectionOutlines,
-                        BuiltInCategory.OST_WallsStructure,
-                        BuiltInCategory.OST_WallsSubstrate,
                         BuiltInCategory.OST_WallsSurfacePattern,
-                        BuiltInCategory.OST_StackedWalls,
+                        BuiltInCategory.OST_Doors,
                         BuiltInCategory.OST_Windows
                     };
 
@@ -83,31 +72,37 @@ namespace RevCloudInRed
                         }
                     }
 
-                    string baseName = $"Temp_BlackOverrideFilter_Sheet_{sheet.Id.IntegerValue}";
-                    string filterName = GetUniqueFilterName(doc, baseName);
-                    ParameterFilterElement sheetFilter = ParameterFilterElement.Create(doc, filterName, categoryIdsToOverride);
-
+                    // Create sheet-level filter
+                    ParameterFilterElement sheetFilter = ParameterFilterElement.Create(doc,
+                        $"Temp_BlackOverrideFilter_Sheet_{sheet.Id.IntegerValue}",
+                        categoryIdsToOverride);
                     tempFilterIds.Add(sheetFilter.Id);
 
-                    OverrideGraphicSettings sheetOGS = CreateBlackOverrideSettings();
+                    OverrideGraphicSettings sheetOGS = new OverrideGraphicSettings();
+                    sheetOGS.SetProjectionLineColor(new Color(0, 0, 0));
+                    sheetOGS.SetCutLineColor(new Color(0, 0, 0));
+                    sheetOGS.SetSurfaceForegroundPatternColor(new Color(0, 0, 0));
+                    sheetOGS.SetSurfaceBackgroundPatternColor(new Color(0, 0, 0));
 
                     sheet.AddFilter(sheetFilter.Id);
                     sheet.SetFilterOverrides(sheetFilter.Id, sheetOGS);
 
                     // View-level filters
-                    ICollection<ElementId> placedViewIds = sheet.GetAllPlacedViews();
-                    foreach (ElementId viewId in placedViewIds)
+                    foreach (ElementId viewId in sheet.GetAllPlacedViews())
                     {
-                        Autodesk.Revit.DB.View view = doc.GetElement(viewId) as Autodesk.Revit.DB.View;
+                        View view = doc.GetElement(viewId) as View;
                         if (view == null || view.IsTemplate) continue;
 
-                        string viewBaseName = $"Temp_BlackOverrideFilter_View_{view.Id.IntegerValue}";
-                        string viewFilterName = GetUniqueFilterName(doc, viewBaseName);
-                        ParameterFilterElement viewFilter = ParameterFilterElement.Create(doc, viewFilterName, categoryIdsToOverride);
-
+                        ParameterFilterElement viewFilter = ParameterFilterElement.Create(doc,
+                            $"Temp_BlackOverrideFilter_View_{view.Id.IntegerValue}",
+                            categoryIdsToOverride);
                         tempFilterIds.Add(viewFilter.Id);
 
-                        OverrideGraphicSettings viewOGS = CreateBlackOverrideSettings();
+                        OverrideGraphicSettings viewOGS = new OverrideGraphicSettings();
+                        viewOGS.SetProjectionLineColor(new Color(0, 0, 0));
+                        viewOGS.SetCutLineColor(new Color(0, 0, 0));
+                        viewOGS.SetSurfaceForegroundPatternColor(new Color(0, 0, 0));
+                        viewOGS.SetSurfaceBackgroundPatternColor(new Color(0, 0, 0));
 
                         view.AddFilter(viewFilter.Id);
                         view.SetFilterOverrides(viewFilter.Id, viewOGS);
@@ -118,7 +113,7 @@ namespace RevCloudInRed
             }
 
             PrintManager printManager = doc.PrintManager;
-            printManager.SelectNewPrintDriver("PDFCreator");
+            printManager.SelectNewPrintDriver("Microsoft Print to PDF");
             printManager.PrintRange = PrintRange.Select;
             printManager.PrintToFile = true;
 
@@ -137,51 +132,26 @@ namespace RevCloudInRed
                 printTx.Commit();
             }
 
-            //string outputFolder = @"C:\\Temp\\Revit Sheet PDFs";
-            //Directory.CreateDirectory(outputFolder);
-
-            string outputFolder = "";
-
-            using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
-            {
-                folderDialog.Description = "Select folder to save printed PDFs";
-                folderDialog.ShowNewFolderButton = true;
-
-                DialogResult result = folderDialog.ShowDialog();
-                if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(folderDialog.SelectedPath))
-                {
-                    outputFolder = folderDialog.SelectedPath;
-                }
-                else
-                {
-                    TaskDialog.Show("Cancelled", "No folder selected. Printing aborted.");
-                    return Result.Cancelled;
-                }
-            }
-
+            string outputFolder = @"C:\Temp\Revit Sheet PDFs";
+            Directory.CreateDirectory(outputFolder);
 
             List<string> printedFiles = new List<string>();
 
-            foreach (ViewSheet sheet in sheetsCollector)
+            foreach (ViewSheet sheet in selectedSheets)
             {
                 ViewSet vs = new ViewSet();
                 vs.Insert(sheet);
                 printManager.ViewSheetSetting.CurrentViewSheetSet.Views = vs;
                 printManager.Apply();
 
-                string fileName = $"{sheet.SheetNumber} - {sheet.Name}.pdf";
-
-                foreach (char c in Path.GetInvalidFileNameChars())
-                {
-                    fileName = fileName.Replace(c, '-');
-                }
-
+                string fileName = CleanFileName($"{sheet.SheetNumber}_{sheet.Name}.pdf");
                 string filePath = Path.Combine(outputFolder, fileName);
                 printManager.PrintToFileName = filePath;
 
                 try
                 {
                     printManager.SubmitPrint();
+
                     int retry = 0;
                     while (!File.Exists(filePath) && retry < 10)
                     {
@@ -199,52 +169,34 @@ namespace RevCloudInRed
                 }
             }
 
-            //string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
-            //MergePdfFiles(printedFiles, mergedPdfPath);
+            string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
+            MergePdfFiles(printedFiles, mergedPdfPath);
 
             using (Transaction cleanupTx = new Transaction(doc, "Clean Up Temporary Filters"))
             {
                 cleanupTx.Start();
                 foreach (ElementId filterId in tempFilterIds)
                 {
-                    try { doc.Delete(filterId); } catch { }
+                    try
+                    {
+                        doc.Delete(filterId);
+                    }
+                    catch { }
                 }
                 cleanupTx.Commit();
             }
 
-            //TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{mergedPdfPath}");
-            //TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{outputFolder}");
-
+            TaskDialog.Show("Success", $"Selected sheets printed and merged to:\n{mergedPdfPath}");
             return Result.Succeeded;
         }
 
-        private OverrideGraphicSettings CreateBlackOverrideSettings()
+        private string CleanFileName(string rawName)
         {
-            var ogs = new OverrideGraphicSettings();
-            Color black = new Color(0, 0, 0);
-            //ogs.SetHalftone(true);
-
-            ogs.SetProjectionLineColor(black);
-            ogs.SetCutLineColor(black);
-            ogs.SetSurfaceBackgroundPatternColor(black);
-            ogs.SetSurfaceForegroundPatternColor(black);
-            ogs.SetCutBackgroundPatternColor(black);
-            ogs.SetCutForegroundPatternColor(black);
-            return ogs;
-        }
-
-        private string GetUniqueFilterName(Document doc, string baseName)
-        {
-            string name = baseName;
-            int counter = 1;
-            while (new FilteredElementCollector(doc).OfClass(typeof(ParameterFilterElement))
-                    .Cast<ParameterFilterElement>()
-                    .Any(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            foreach (char c in Path.GetInvalidFileNameChars())
             {
-                name = $"{baseName}_{counter}";
-                counter++;
+                rawName = rawName.Replace(c, '_');
             }
-            return name;
+            return rawName;
         }
 
         private void MergePdfFiles(List<string> filePaths, string outputPath)

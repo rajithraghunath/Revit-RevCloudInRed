@@ -118,7 +118,7 @@ namespace RevCloudInRed
             }
 
             PrintManager printManager = doc.PrintManager;
-            printManager.SelectNewPrintDriver("PDFCreator");
+            printManager.SelectNewPrintDriver("Microsoft Print to PDF");
             printManager.PrintRange = PrintRange.Select;
             printManager.PrintToFile = true;
 
@@ -169,11 +169,10 @@ namespace RevCloudInRed
                 printManager.ViewSheetSetting.CurrentViewSheetSet.Views = vs;
                 printManager.Apply();
 
-                string fileName = $"{sheet.SheetNumber} - {sheet.Name}.pdf";
-
+                string fileName = $"{sheet.SheetNumber}_{sheet.Name}.pdf";
                 foreach (char c in Path.GetInvalidFileNameChars())
                 {
-                    fileName = fileName.Replace(c, '-');
+                    fileName = fileName.Replace(c, '_');
                 }
 
                 string filePath = Path.Combine(outputFolder, fileName);
@@ -199,8 +198,8 @@ namespace RevCloudInRed
                 }
             }
 
-            //string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
-            //MergePdfFiles(printedFiles, mergedPdfPath);
+            string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
+            MergePdfFiles(printedFiles, mergedPdfPath);
 
             using (Transaction cleanupTx = new Transaction(doc, "Clean Up Temporary Filters"))
             {
@@ -212,9 +211,7 @@ namespace RevCloudInRed
                 cleanupTx.Commit();
             }
 
-            //TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{mergedPdfPath}");
-            //TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{outputFolder}");
-
+            TaskDialog.Show("Success", $"Selected sheets printed and combined PDF saved to:\n{mergedPdfPath}");
             return Result.Succeeded;
         }
 
@@ -222,8 +219,6 @@ namespace RevCloudInRed
         {
             var ogs = new OverrideGraphicSettings();
             Color black = new Color(0, 0, 0);
-            //ogs.SetHalftone(true);
-
             ogs.SetProjectionLineColor(black);
             ogs.SetCutLineColor(black);
             ogs.SetSurfaceBackgroundPatternColor(black);
