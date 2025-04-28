@@ -60,6 +60,8 @@ namespace RevCloudInRed
                         BuiltInCategory.OST_FillPatterns,
                         BuiltInCategory.OST_Walls,
                         BuiltInCategory.OST_FilledRegion,
+                        BuiltInCategory.OST_RasterImages,
+
                         BuiltInCategory.OST_WallsCutPattern,
                         BuiltInCategory.OST_WallsDefault,
                         BuiltInCategory.OST_WallsFinish1,
