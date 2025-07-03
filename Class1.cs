@@ -39,13 +39,15 @@ namespace RevCloudInRed
             {
                 tx.Start();
 
+#pragma warning disable CS0618 // Ignore obsolete warning for ParameterFilterElement.Create
+
                 foreach (ViewSheet sheet in sheetsCollector)
                 {
                     List<ElementId> categoryIdsToOverride = new List<ElementId>();
                     foreach (Category cat in doc.Settings.Categories)
                     {
                         if ((cat.CategoryType == CategoryType.Annotation || cat.CategoryType == CategoryType.Model) &&
-                            cat.Id.IntegerValue != (int)BuiltInCategory.OST_RevisionClouds)
+                            cat.Id.IntegerValue != (int)BuiltInCategory.OST_RevisionClouds && cat.Id.IntegerValue != (int)BuiltInCategory.OST_RevisionCloudTags)
                         {
                             categoryIdsToOverride.Add(cat.Id);
                         }
@@ -166,24 +168,33 @@ namespace RevCloudInRed
 
             foreach (ViewSheet sheet in sheetsCollector)
             {
-                ViewSet vs = new ViewSet();
-                vs.Insert(sheet);
-                printManager.ViewSheetSetting.CurrentViewSheetSet.Views = vs;
-                printManager.Apply();
+                string filePath = ""; // Declare filePath BEFORE the transaction
 
-                string fileName = $"{sheet.SheetNumber} - {sheet.Name}.pdf";
-
-                foreach (char c in Path.GetInvalidFileNameChars())
+                using (Transaction setTx = new Transaction(doc, $"Prepare Print Sheet {sheet.SheetNumber}"))
                 {
-                    fileName = fileName.Replace(c, '-');
-                }
+                    setTx.Start();
 
-                string filePath = Path.Combine(outputFolder, fileName);
-                printManager.PrintToFileName = filePath;
+                    ViewSet singleSheetSet = new ViewSet();
+                    singleSheetSet.Insert(sheet);
+
+
+
+                    printManager.ViewSheetSetting.CurrentViewSheetSet.Views = singleSheetSet;
+
+                    string fileName = $"{sheet.SheetNumber} - {sheet.Name}.pdf";
+                    foreach (char c in Path.GetInvalidFileNameChars())
+                        fileName = fileName.Replace(c, '-');
+
+                    filePath = Path.Combine(outputFolder, fileName);
+                    printManager.PrintToFileName = filePath;
+
+                    setTx.Commit();
+                }
 
                 try
                 {
                     printManager.SubmitPrint();
+
                     int retry = 0;
                     while (!File.Exists(filePath) && retry < 10)
                     {
@@ -199,7 +210,11 @@ namespace RevCloudInRed
                     TaskDialog.Show("Print Error", $"Failed to print {sheet.Name}: {ex.Message}");
                     return Result.Failed;
                 }
+                break;
             }
+
+
+
 
             //string mergedPdfPath = Path.Combine(outputFolder, "COMBINED_REVIT_SHEETS.pdf");
             //MergePdfFiles(printedFiles, mergedPdfPath);

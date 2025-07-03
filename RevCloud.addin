@@ -5,7 +5,7 @@
 		<Assembly>C:\Vs\RevCloudinRed\bin\Debug\RevCloudInRed.dll</Assembly>
 		<AddInId>F8361386-B265-4115-A31F-0048B7873BD1</AddInId>
 		<FullClassName>RevCloudInRed.PrintWithColoredRevisionClouds</FullClassName>
-		<Text>Plot-RevCloud in Red</Text>
+		<Text>Plot-Rec Cloud in Red</Text>
 		<VendorId>Setty</VendorId>
 		<VendorDescription>smebimgroup@setty.com</VendorDescription>
 	</AddIn>
